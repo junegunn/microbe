@@ -1,0 +1,11 @@
+set term svg size {{ width }}, {{ height }}
+set multiplot layout 2, 1 title {{ title }}
+set lmargin screen 0.1
+set xdata time
+set timefmt "%H:%M:%S"
+set format x "%H:%M:%S"
+set yrange [0:*]
+set title "Throughput"
+plot for [COL=3:3] {{ input }} using 1:COL with linespoints pointsize 0.5 title columnhead(COL)
+set title "Latency (ms)"
+plot for [COL=6:8] {{ input }} using 1:(column(COL)) with linespoints pointsize 0.5 title columnhead(COL)
