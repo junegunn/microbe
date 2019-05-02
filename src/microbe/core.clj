@@ -104,10 +104,10 @@
           (catch Exception e
             (deliver @barrier e))
           (finally
+            (deliver @barrier nil)
             (let [{:keys [exit out]} (shell/sh "gnuplot" (.getPath gpi))]
               (when (zero? exit)
-                (spit svg out)))
-            (deliver @barrier nil))))))
+                (spit svg out))))))))
 
   (defn stop-reporting
     []
