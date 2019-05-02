@@ -7,14 +7,18 @@
   (:import
    java.text.SimpleDateFormat
    java.text.DecimalFormat
-   [org.HdrHistogram Histogram SynchronizedHistogram]))
+   [org.HdrHistogram AbstractHistogram Histogram SynchronizedHistogram]))
+
+(defn create-histo
+  []
+  (SynchronizedHistogram. (.toMicros java.util.concurrent.TimeUnit/HOURS 1) 3))
 
 (def
   ^{:doc     "HDR Histogram being used"
     :private true
     :tag     Histogram}
   histo
-  (SynchronizedHistogram. (.toMicros java.util.concurrent.TimeUnit/HOURS 1) 3))
+  (create-histo))
 
 (defn- make-gnuplot-input
   [template values]
@@ -32,31 +36,32 @@
         template))))
 
 (defn- round
-  [num precision]
+  [precision num]
   (let [scale (Math/pow 10 precision)]
     (/ (Math/round (* scale num)) scale)))
 
 (defn- us->ms
   [us]
-  (round (/ us 1000) 3))
+  (round 3 (/ us 1000)))
 
-(declare default-options)
+(defn- hhmmss
+  []
+  (.format (SimpleDateFormat. "HH:mm:ss.SSS") (java.util.Date.)))
 
 (let [session (atom 0)
-      barrier (atom (promise))
-      date-format (let [fmt (SimpleDateFormat. "HH:mm:ss.SSS")]
-                    #(.format fmt %))]
+      barrier (atom (promise))]
 
   (defn console-logger
     [point]
     (binding [*out* (io/writer System/out)]
-      (println (str "\u001b[33;1m" (:time point)
-                    " \u001b[34;1m" (dissoc point :time) "\u001b[m"))))
+      (println (str
+                (when-let [t (:time point)]
+                  (str "\u001b[33;1m" t " "))
+                "\u001b[34;1m" (dissoc point :time) "\u001b[m"))))
 
   (defn start-reporting
     [options]
-    (let [options (merge default-options options)
-          {:keys [interval logger output-dir title template]} options
+    (let [{:keys [interval accum logger output-dir title template]} options
           output-dir (io/file output-dir)
           labels [:time :total :tps :mean :0 :99 :99.9 :100]
           getter (apply juxt labels)
@@ -83,13 +88,14 @@
                   tdiff (/ (- now prev-time) (Math/pow 10 9))
                   cnt (.getTotalCount histo)
                   total (+ total cnt)
-                  point (into {:time  (date-format (java.util.Date.))
+                  point (into {:time  (hhmmss)
                                :total total
-                               :tps   (round (/ cnt tdiff) 3)
+                               :tps   (round 3 (/ cnt tdiff))
                                :mean  (us->ms (.getMean histo))}
                               (map (juxt (comp keyword str)
                                          #(us->ms (.getValueAtPercentile histo %)))
                                    [0 99 99.9 100]))]
+              (when accum (.add ^AbstractHistogram accum histo))
               (.reset histo)
               (when logger (logger point))
               (spit csv (->row (getter point)) :append true)
@@ -117,6 +123,18 @@
    :height 700
    :output-dir "result"})
 
+(defn- summarize
+  [ns-diff ^Histogram histo]
+  (let [s-diff (/ ns-diff (Math/pow 10 9))
+        total (.getTotalCount histo)]
+    (into {:elapsed (round 3 s-diff)
+           :total total
+           :tps (round 3 (/ total s-diff))
+           :mean (us->ms (.getMean histo))}
+          (map (juxt (comp keyword str)
+                     #(us->ms (.getValueAtPercentile histo %)))
+               [0 99 99.9 100]))))
+
 (defmacro run
   "Starts and stops console metric reporter while evaluating the forms and
   generates CSV and SVG output of the metrics during the run. If the first
@@ -126,11 +144,17 @@
   (let [[opts forms] (if (map? (first forms))
                        [(first forms) (rest forms)]
                        [{} forms])]
-    `(try
-       (start-reporting ~opts)
-       ~@forms
-       (finally
-         (stop-reporting)))))
+    `(let [histo# (create-histo)
+           opts# (assoc (merge default-options ~opts) :accum histo#)
+           started# (System/nanoTime)]
+       (try
+         (start-reporting opts#)
+         ~@forms
+         (finally
+           (let [elapsed# (- (System/nanoTime) started#)]
+             (stop-reporting)
+             (when-let [logger# (:logger opts#)]
+               (logger# (#'summarize elapsed# histo#)))))))))
 
 (defmacro <>
   "Executes the forms and records the response time with HDR histogram"
