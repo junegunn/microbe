@@ -5,6 +5,7 @@
    [clojure.java.shell :as shell]
    [clojure.string :as str])
   (:import
+   java.util.Date
    java.text.SimpleDateFormat
    java.text.DecimalFormat
    [org.HdrHistogram AbstractHistogram Histogram SynchronizedHistogram]))
@@ -44,9 +45,14 @@
   [us]
   (round 3 (/ us 1000)))
 
-(defn- hhmmss
-  []
-  (.format (SimpleDateFormat. "HH:mm:ss.SSS") (java.util.Date.)))
+(defn- format-elapsed
+  [ns-diff]
+  (let [ms-diff (quot ns-diff (Math/pow 10 6))
+        ms (int (rem ms-diff 1000))
+        s (int (rem (quot ms-diff 1000) 60))
+        m (int (rem (quot ms-diff (* 60 1000)) 60))
+        h (int (rem (quot ms-diff (* 60 60 1000)) 60))]
+    (format "%02d:%02d:%02d.%03d" h m s ms)))
 
 (let [session (atom 0)
       barrier (atom (promise))]
@@ -55,21 +61,21 @@
     [point]
     (binding [*out* (io/writer System/out)]
       (println (str
-                (when-let [t (:time point)]
-                  (str "\u001b[33;1m" t " "))
-                "\u001b[34;1m" (dissoc point :time) "\u001b[m"))))
+                "\u001b[33;1m" (.format (SimpleDateFormat. "HH:mm:ss.SSS") (Date.)) " "
+                "\u001b[34;1m" point "\u001b[m"))))
 
   (defn start-reporting
     [options]
     (let [{:keys [interval accum logger output-dir title template]} options
           output-dir (io/file output-dir)
           labels [:time :total :tps :mean :0 :99 :99.9 :100]
-          getter (apply juxt labels)
+          getter (apply juxt (drop 1 labels))
           csv (io/file output-dir "report.csv")
           gpi (io/file output-dir "report.gpi")
           svg (io/file output-dir "report.svg")
           ->row #(str (str/join "\t" %) "\n")
-          current-session (swap! session inc)]
+          current-session (swap! session inc)
+          started-at (System/nanoTime)]
       (reset! barrier (promise))
       (.reset histo)
       (.mkdirs output-dir)
@@ -88,17 +94,19 @@
                   tdiff (/ (- now prev-time) (Math/pow 10 9))
                   cnt (.getTotalCount histo)
                   total (+ total cnt)
-                  point (into {:time  (hhmmss)
-                               :total total
+                  point (into {:total total
                                :tps   (round 3 (/ cnt tdiff))
                                :mean  (us->ms (.getMean histo))}
                               (map (juxt (comp keyword str)
                                          #(us->ms (.getValueAtPercentile histo %)))
-                                   [0 99 99.9 100]))]
+                                   [0 99 99.9 100]))
+                  elapsed (.getTime (Date.))]
               (when accum (.add ^AbstractHistogram accum histo))
               (.reset histo)
               (when logger (logger point))
-              (spit csv (->row (getter point)) :append true)
+              (spit csv (->row (into [(format-elapsed (- now started-at))]
+                                     (getter point)))
+                    :append true)
               (when cont
                 (recur total now (rest ticker) (= @session current-session)))))
           (catch Exception e
