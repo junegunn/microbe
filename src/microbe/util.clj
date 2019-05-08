@@ -66,7 +66,9 @@
      (ThreadPoolExecutor$CallerRunsPolicy.))))
 
 (defmacro with-thread-pool
-  "bindings => [name execution-count-or-seqable :threads num-threads]
+  "bindings => [name execution-count-or-seqable
+                :threads num-threads
+                :frequency submit-frequency]
 
   Evaluates the forms multiple times or for each item in the sequence using
   a thread pool. If the number of threads is not specified, it is set to the
@@ -74,19 +76,21 @@
   [bindings & forms]
   (when-not (vector? bindings)
     (throw (IllegalArgumentException. "requires vector as the first argument")))
-  (let [pairs (group-by (comp #{:threads} first) (partition 2 bindings))
-        [sym times] (last (pairs nil))
-        num-threads (some->> (pairs :threads) last last)
-        num-threads (or num-threads
-                        (.. Runtime getRuntime availableProcessors))]
+  (let [options (apply hash-map bindings)
+        [sym times] (last (filter (comp symbol? key) options))
+        {:keys [threads frequency]} options
+        threads (or threads (.. Runtime getRuntime availableProcessors))]
     (when-not (symbol? sym)
       (throw (IllegalArgumentException. "binding required")))
-    `(let [pool# (create-thread-pool ~num-threads)
+    `(let [pool# (create-thread-pool ~threads)
+           freq# ~frequency
            times# ~times]
        (try
-         (if (integer? times#)
-           (dotimes [~sym times#] (.submit pool# ^Callable #(do ~@forms)))
-           (doseq [~sym times#] (.submit pool# ^Callable #(do ~@forms))))
+         (let [items# (if (integer? times#)
+                        (take times# (iterate inc 0))
+                        times#)]
+           (doseq [[~sym _#] (map vector items# (if freq# (ticker freq#) items#))]
+             (.submit pool# ^Callable #(do ~@forms))))
          (finally
            (.shutdown pool#)
            (.awaitTermination pool# Long/MAX_VALUE java.util.concurrent.TimeUnit/SECONDS))))))
@@ -95,4 +99,6 @@
   (with-thread-pool [idx 100 :threads 10]
     (println (str "(" idx ")")))
   (with-thread-pool [item (range 100) :threads 10]
+    (println (str "(" item ")")))
+  (with-thread-pool [item (range 100) :threads 10 :frequency 100]
     (println (str "(" item ")"))))

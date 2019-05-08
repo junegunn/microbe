@@ -48,6 +48,8 @@ benchmarking.
   (println (str "(" idx ")")))
 (util/with-thread-pool [item (range 100) :threads 10]
   (println (str "(" item ")")))
+(util/with-thread-pool [item (range 100) :threads 10 :frequency 100]
+  (println (str "(" item ")")))
 ```
 
 ## License
