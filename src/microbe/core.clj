@@ -54,6 +54,10 @@
         h (int (rem (quot ms-diff (* 60 60 1000)) 60))]
     (format "%02d:%02d:%02d.%03d" h m s ms)))
 
+(defn- hhmmss
+  []
+  (.format (SimpleDateFormat. "HH:mm:ss.SSS") (Date.)))
+
 (let [session (atom 0)
       barrier (atom (promise))]
 
@@ -61,15 +65,15 @@
     [point]
     (binding [*out* (io/writer System/out)]
       (println (str
-                "\u001b[33;1m" (.format (SimpleDateFormat. "HH:mm:ss.SSS") (Date.)) " "
+                "\u001b[33;1m" (hhmmss) " "
                 "\u001b[34;1m" point "\u001b[m"))))
 
   (defn start-reporting
     [options]
     (let [{:keys [interval accum logger output-dir title template]} options
           output-dir (io/file output-dir)
-          labels [:time :total :tps :mean :0 :99 :99.9 :100]
-          getter (apply juxt (drop 1 labels))
+          labels [:time :elapsed :total :tps :mean :0 :99 :99.9 :100]
+          getter (apply juxt (drop 2 labels))
           csv (io/file output-dir "report.csv")
           gpi (io/file output-dir "report.gpi")
           svg (io/file output-dir "report.svg")
@@ -100,11 +104,11 @@
                               (map (juxt (comp keyword str)
                                          #(us->ms (.getValueAtPercentile histo %)))
                                    [0 99 99.9 100]))
-                  elapsed (.getTime (Date.))]
+                  time (hhmmss)]
               (when accum (.add ^AbstractHistogram accum histo))
               (.reset histo)
               (when logger (logger point))
-              (spit csv (->row (into [(format-elapsed (- now started-at))]
+              (spit csv (->row (into [time (format-elapsed (- now started-at))]
                                      (getter point)))
                     :append true)
               (when cont
