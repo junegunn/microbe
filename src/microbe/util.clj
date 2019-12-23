@@ -40,7 +40,7 @@
       achars (char-array chars)]
   (defn rand-str
     "Returns a random base62 string of the given length."
-    [n]
+    ^String [n]
     (let [cnt (count achars)
           rng (ThreadLocalRandom/current) ; 3-times faster than rand-int
           arr (char-array n)]
@@ -50,8 +50,8 @@
 
 ;;; Blocking thread pool
 (let [pool-count (atom 0)]
-  (defn ^ExecutorService create-thread-pool
-    [size]
+  (defn create-thread-pool
+    ^ExecutorService [size]
     (when-not (and (integer? size) (pos? size))
       (throw (IllegalArgumentException. "Number of threads should be a positive integer")))
     (ThreadPoolExecutor.
