@@ -8,4 +8,4 @@ set yrange [0:*]
 set title "Throughput"
 plot {{ input }} using 2:4 with linespoints pointsize 0.5 title columnhead(4)
 set title "Latency (ms)"
-plot for [COL=7:9] {{ input }} using 2:(column(COL)) with linespoints pointsize 0.5 title columnhead(COL)
+plot for [COL=7:10] {{ input }} using 2:(column(COL)) with linespoints pointsize 0.5 title columnhead(COL)

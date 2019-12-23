@@ -72,7 +72,7 @@
     [options]
     (let [{:keys [interval accum logger output-dir title template]} options
           output-dir (io/file output-dir)
-          labels [:time :elapsed :total :tps :mean :0 :99 :99.9 :100]
+          labels [:time :elapsed :total :tps :mean :0 :99 :99.9 :99.99 :100]
           getter (apply juxt (drop 2 labels))
           csv (io/file output-dir "report.csv")
           gpi (io/file output-dir "report.gpi")
@@ -103,7 +103,7 @@
                                :mean  (us->ms (.getMean histo))}
                               (map (juxt (comp keyword str)
                                          #(us->ms (.getValueAtPercentile histo %)))
-                                   [0 99 99.9 100]))
+                                   [0 99 99.9 99.99 100]))
                   time (hhmmss)]
               (when accum (.add ^AbstractHistogram accum histo))
               (.reset histo)
