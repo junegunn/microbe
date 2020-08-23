@@ -11,6 +11,9 @@ Usage
 
 ### `microbe.core`
 
+- `run`
+- `<>`
+
 ```clojure
 (require '[microbe.core :as mcb :refer [<>]])
 
@@ -22,14 +25,31 @@ Usage
    (<> (Thread/sleep (rand-int 10)))))
 ```
 
-The metrics during the run will be stored as a CSV file in `:output-dir`.
-If `gnuplot` is available on the system, throughput/latency plot will also be
-generated as a SVG file.
+The metrics during the run will be stored as a CSV file in `:output-dir`. If
+`gnuplot` executable is available on the system, throughput/latency plot will
+also be generated as a SVG file in that directory.
+
+![](images/report.svg)
+
+#### Default options for `run`
+
+```clojure
+{:interval 5
+ :logger microbe.core/console-logger
+ :title "Benchmark Result"
+ :width 1000
+ :height 700
+ :output-dir "result"}
+```
 
 ### `microbe.util`
 
 `microbe.util` namespace provides a few functions that are useful for micro
-benchmarking.
+benchmarks.
+
+- `rand-str`
+- `ticker`
+- `with-thread-pool`
 
 ```clojure
 (require '[microbe.util :as util])

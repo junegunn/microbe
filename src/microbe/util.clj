@@ -1,5 +1,5 @@
 (ns microbe.util
-  "Utility functions useful for micro benchmarking"
+  "Utility functions useful for micro benchmarks"
   (:import (java.util.concurrent ArrayBlockingQueue ExecutorService
                                  ThreadFactory ThreadLocalRandom
                                  ThreadPoolExecutor
