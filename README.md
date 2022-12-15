@@ -25,9 +25,10 @@ Usage
    (<> (Thread/sleep (rand-int 10)))))
 ```
 
-The metrics during the run will be stored as a CSV file in `:output-dir`. If
-`gnuplot` executable is available on the system, throughput/latency plot will
-also be generated as a SVG file in that directory.
+* `run` returns the summary of the run as a map
+* The metrics during the run will be stored as a CSV file in `:output-dir`. If
+  `gnuplot` executable is available on the system, throughput/latency plot
+  will also be generated as a SVG file in that directory.
 
 ![](images/report.svg)
 

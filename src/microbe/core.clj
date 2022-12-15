@@ -78,8 +78,8 @@
           gpi (io/file output-dir "report.gpi")
           svg (io/file output-dir "report.svg")
           ->row #(str (str/join "\t" %) "\n")
-          current-session (swap! session inc)
-          started-at (System/nanoTime)]
+          started-at (System/nanoTime)
+          current-session (reset! session started-at)]
       (reset! barrier (promise))
       (.reset histo)
       (.mkdirs output-dir)
@@ -94,9 +94,10 @@
                  prev-time (System/nanoTime)
                  ticker (rest (util/ticker (/ 1 interval)))
                  cont true]
-            (let [now (System/nanoTime)
+            (let [cont  (= @session current-session)
+                  now   (if cont (System/nanoTime) @session)
                   tdiff (/ (- now prev-time) (Math/pow 10 9))
-                  cnt (.getTotalCount histo)
+                  cnt   (.getTotalCount histo)
                   total (+ total cnt)
                   point (into {:total total
                                :tps   (round 3 (/ cnt tdiff))
@@ -104,7 +105,7 @@
                               (map (juxt (comp keyword str)
                                          #(us->ms (.getValueAtPercentile histo %)))
                                    [0 99 99.9 99.99 100]))
-                  time (hhmmss)]
+                  time  (hhmmss)]
               (when accum (.add ^AbstractHistogram accum histo))
               (.reset histo)
               (when logger (logger point))
@@ -112,19 +113,18 @@
                                      (getter point)))
                     :append true)
               (when cont
-                (recur total now (rest ticker) (= @session current-session)))))
-          (catch Exception e
-            (deliver @barrier e))
+                (recur total now (rest ticker) cont))))
           (finally
-            (deliver @barrier nil)
             (let [{:keys [exit out]} (shell/sh "gnuplot" (.getPath gpi))]
-              (when (zero? exit)
-                (spit svg out))))))))
+              (when (zero? exit) (spit svg out)))
+            (deliver @barrier nil))))
+      started-at))
 
   (defn stop-reporting
     []
-    (swap! session inc)
-    @@barrier))
+    (let [end-time (reset! session (System/nanoTime))]
+      @@barrier
+      end-time)))
 
 (def default-options
   {:interval 5
@@ -158,15 +158,16 @@
                        [{} forms])]
     `(let [histo# (create-histo)
            opts# (assoc (merge default-options ~opts) :accum histo#)
-           started# (System/nanoTime)]
+           started# (start-reporting opts#)]
        (try
-         (start-reporting opts#)
          ~@forms
-         (finally
-           (let [elapsed# (- (System/nanoTime) started#)]
-             (stop-reporting)
-             (when-let [logger# (:logger opts#)]
-               (logger# (#'summarize elapsed# histo#)))))))))
+         (let [elapsed# (- (stop-reporting) started#)
+               summary# (#'summarize elapsed# histo#)]
+           (when-let [logger# (:logger opts#)] (logger# summary#))
+           summary#)
+         (catch Exception e#
+           (stop-reporting)
+           (throw e#))))))
 
 (defmacro <>
   "Executes the forms and records the response time with HDR histogram"
