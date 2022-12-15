@@ -3,4 +3,4 @@
   :url "http://github.com/junegunn/microbe"
   :license {:name "MIT"}
   :dependencies [[org.clojure/clojure "1.8.0"]
-                 [org.hdrhistogram/HdrHistogram "2.1.11"]])
+                 [org.hdrhistogram/HdrHistogram "2.1.12"]])
