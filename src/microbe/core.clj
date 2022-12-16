@@ -115,8 +115,9 @@
               (when cont
                 (recur total now (rest ticker) cont))))
           (finally
-            (let [{:keys [exit out]} (shell/sh "gnuplot" (.getPath gpi))]
-              (when (zero? exit) (spit svg out)))
+            (try (let [{:keys [exit out]} (shell/sh "gnuplot" (.getPath gpi))]
+                   (when (zero? exit) (spit svg out)))
+                 (catch Exception e))
             (deliver @barrier nil))))
       started-at))
 

@@ -1,4 +1,4 @@
-(defproject junegunn/microbe "0.1.0"
+(defproject junegunn/microbe "0.1.1"
   :description "A simple micro benchmark helper"
   :url "http://github.com/junegunn/microbe"
   :license {:name "MIT"}
