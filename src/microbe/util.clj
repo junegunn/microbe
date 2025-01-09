@@ -67,6 +67,7 @@
 
 (defmacro with-thread-pool
   "bindings => [name execution-count-or-seqable
+                :duration duration-in-seconds
                 :threads num-threads
                 :frequency submit-frequency]
 
@@ -78,18 +79,24 @@
     (throw (IllegalArgumentException. "requires vector as the first argument")))
   (let [options (apply hash-map bindings)
         [sym times] (last (filter (comp symbol? key) options))
-        {:keys [threads frequency]} options
+        {:keys [duration threads frequency]} options
         threads (or threads (.. Runtime getRuntime availableProcessors))]
     (when-not (symbol? sym)
       (throw (IllegalArgumentException. "binding required")))
     `(let [pool# (create-thread-pool ~threads)
            freq# ~frequency
-           times# ~times]
+           times# ~times
+           while-fn# (if ~duration
+                      (let [duration-ns# (* ~duration 1000000000)
+                            now# (System/nanoTime)]
+                        (fn [] (< (- (System/nanoTime) now#) duration-ns#)))
+                      (constantly true))]
        (try
          (let [items# (if (integer? times#)
                         (take times# (iterate inc 0))
                         times#)]
-           (doseq [[~sym _#] (map vector items# (if freq# (ticker freq#) items#))]
+           (doseq [[~sym _#] (map vector items# (if freq# (ticker freq#) items#))
+                   :while (while-fn#)]
              (.submit pool# ^Callable #(do ~@forms))))
          (finally
            (.shutdown pool#)

@@ -71,6 +71,8 @@ benchmarks.
   (println (str "(" item ")")))
 (util/with-thread-pool [item (range 100) :threads 10 :frequency 100]
   (println (str "(" item ")")))
+(util/with-thread-pool [item (range 100) :threads 10 :frequency 10 :duration 3]
+  (println (str "(" item ")")))
 ```
 
 ## License
